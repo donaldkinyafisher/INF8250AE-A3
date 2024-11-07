@@ -127,12 +127,18 @@ def sample_transition(rng: chex.PRNGKey, buffer: ReplayBufferStorage) -> Transit
 
   ################
   ## YOUR CODE GOES HERE
+
+  #Sample is limited by the number of things in the buffer
+  key, subkey = jax.random.split(rng, 2)
+  sample = jax.random.randint(subkey, shape=(1,), minval=0, maxval=buffer.cursor.item())
+  #print(f"sample_no:{sample}")
+
   # please define these variables yourself
-  sampled_states = ...
-  sampled_actions = ...
-  sampled_rewards = ...
-  sampled_dones = ...
-  samped_next_states = ...
+  sampled_states = buffer.states[sample]
+  sampled_actions = buffer.actions[sample]
+  sampled_rewards = buffer.rewards[sample]
+  sampled_dones = buffer.dones[sample]
+  samped_next_states = buffer.next_states[sample]
   ################
   
   transition = (
