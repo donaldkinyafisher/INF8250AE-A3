@@ -81,31 +81,41 @@ def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> Repla
 
   ################
   ## YOUR CODE GOES HERE
+  # Define a function to shift buffer elements if it's full
+  def shift_buffer_if_full(buffer, cursor):
+      # Shift all elements in the buffer if it's full
+      buffer = buffer.replace(
+          states=buffer.states.at[:-1].set(buffer.states[1:]),
+          actions=buffer.actions.at[:-1].set(buffer.actions[1:]),
+          rewards=buffer.rewards.at[:-1].set(buffer.rewards[1:]),
+          dones=buffer.dones.at[:-1].set(buffer.dones[1:]),
+          next_states=buffer.next_states.at[:-1].set(buffer.next_states[1:])
+      )
+      return buffer
 
-  
-  #If buffer is full, move all elements up one, removing the 1st and adding this to the end.
-  if buffer.full:
-    for i in range(max_buffer_size-1):
-      buffer = buffer.replace(states = buffer.states.at[i].set(buffer.states[i+1]),
-                       actions = buffer.actions.at[i].set(buffer.actions[i+1]),
-                       rewards = buffer.rewards.at[i].set(buffer.rewards[i+1]),
-                       dones = buffer.dones.at[i].set(buffer.dones[i+1]),
-                       next_states = buffer.next_states.at[i].set(buffer.next_states[i+1])
-                       )
+  # Update the buffer only if full, otherwise return it as is
+  buffer = jax.lax.cond(
+      buffer.full,  # condition
+      shift_buffer_if_full,  # function to execute if True
+      lambda b, c: b,  # function to execute if False (no changes)
+      buffer,
+      cursor
+  )
 
-  new_cursor = cursor.item() +1 if cursor.item() < max_buffer_size-1 else cursor.item()
-  buffer_full = True if cursor.item() == max_buffer_size-1 else False
+  # Determine the new cursor position
+  new_cursor = jnp.where(cursor < max_buffer_size - 1, cursor + 1, cursor)
+  buffer_full = cursor == max_buffer_size - 1
 
-  #Append transition to the end of the buffer
-  new_buffer = buffer.replace(states = buffer.states.at[cursor].set(state),
-                              actions = buffer.actions.at[cursor].set(action),
-                              rewards = buffer.rewards.at[cursor].set(reward),
-                              dones = buffer.dones.at[cursor].set(done),
-                              next_states = buffer.next_states.at[cursor].set(next_state),
-                              cursor = buffer.cursor.at[()].set(new_cursor),
-                              full = buffer.cursor.at[()].set(buffer_full)
-                              )
- 
+  # Append the new transition at the cursor position
+  new_buffer = buffer.replace(
+      states=buffer.states.at[cursor].set(state),
+      actions=buffer.actions.at[cursor].set(action),
+      rewards=buffer.rewards.at[cursor].set(reward),
+      dones=buffer.dones.at[cursor].set(bool(done)),
+      next_states=buffer.next_states.at[cursor].set(next_state),
+      cursor=new_cursor,
+      full=buffer_full
+  )
 
   ################
   return new_buffer
@@ -130,7 +140,7 @@ def sample_transition(rng: chex.PRNGKey, buffer: ReplayBufferStorage) -> Transit
 
   #Sample is limited by the number of things in the buffer
   key, subkey = jax.random.split(rng, 2)
-  sample = jax.random.randint(subkey, shape=(1,), minval=0, maxval=buffer.cursor.item())
+  sample = jax.random.randint(subkey, shape=(1,), minval=0, maxval=buffer.cursor)
   #print(f"sample_no:{sample}")
 
   # please define these variables yourself
