@@ -3,7 +3,7 @@ import chex
 from jax import numpy as jnp
 
 from typing import Tuple, Any, Callable
-
+from jax import jit
 
 @chex.dataclass(frozen=True)
 class ReplayBufferStorage:
@@ -56,7 +56,7 @@ def init_buffer(buffer_size: int, state_shape: Tuple[int]) -> ReplayBufferStorag
     full=jnp.array(False)
   )
 
-
+@jit
 def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> ReplayBufferStorage:
   """ adds one transition to the replay buffer.
 
@@ -81,37 +81,20 @@ def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> Repla
 
   ################
   ## YOUR CODE GOES HERE
+  buffer_full = buffer.full
   # Define a function to shift buffer elements if it's full
-  def shift_buffer_if_full(buffer, cursor):
-      # Shift all elements in the buffer if it's full
-      buffer = buffer.replace(
-          states=buffer.states.at[:-1].set(buffer.states[1:]),
-          actions=buffer.actions.at[:-1].set(buffer.actions[1:]),
-          rewards=buffer.rewards.at[:-1].set(buffer.rewards[1:]),
-          dones=buffer.dones.at[:-1].set(buffer.dones[1:]),
-          next_states=buffer.next_states.at[:-1].set(buffer.next_states[1:])
-      )
-      return buffer
-
-  # Update the buffer only if full, otherwise return it as is
-  buffer = jax.lax.cond(
-      buffer.full,  # condition
-      shift_buffer_if_full,  # function to execute if True
-      lambda b, c: b,  # function to execute if False (no changes)
-      buffer,
-      cursor
-  )
 
   # Determine the new cursor position
-  new_cursor = jnp.where(cursor < max_buffer_size - 1, cursor + 1, cursor)
-  buffer_full = cursor == max_buffer_size - 1
+  new_cursor = jnp.where(cursor <= max_buffer_size - 2, cursor + 1, 0) #Reset cursor to 0 if buffer is full.
+  buffer_full_condition = jnp.logical_and(cursor == max_buffer_size - 1, buffer_full == jnp.array(False))
+  buffer_full = jnp.where(buffer_full_condition, True, buffer_full)  #(cursor == max_buffer_size - 1) and 
 
   # Append the new transition at the cursor position
   new_buffer = buffer.replace(
       states=buffer.states.at[cursor].set(state),
       actions=buffer.actions.at[cursor].set(action),
       rewards=buffer.rewards.at[cursor].set(reward),
-      dones=buffer.dones.at[cursor].set(bool(done)),
+      dones=buffer.dones.at[cursor].set(done),
       next_states=buffer.next_states.at[cursor].set(next_state),
       cursor=new_cursor,
       full=buffer_full
@@ -120,7 +103,7 @@ def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> Repla
   ################
   return new_buffer
 
-
+@jit
 def sample_transition(rng: chex.PRNGKey, buffer: ReplayBufferStorage) -> Transition:
   """ randomly (with uniform distribution) samples one transition to retrieve from the replay buffer.
 
