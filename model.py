@@ -54,8 +54,20 @@ class DQN(nn.Module):
         """
         batch = state.shape[0]
         ################
-        ## YOUR CODE GOES HERE
+        ##YOUR CODE GOES HERE
+        #n-hidden * n-outputs = 2000 - 10,000
+        #1st hidden layer
+        state = nn.Dense(features=self.n_actions)(state) #N-hidden
+        state = nn.relu(state)
+
+        #2nd hidden layer
+        state = nn.Dense(features = self.state_shape)(state) #n-outputs? 
+        state == nn.relu(state)
+
+        #Output layer
+        state = nn.Dense(features=1)(state)
         ################
+        
         
         return jnp.zeros((batch, self.n_actions), dtype=jnp.float32)
 
@@ -113,9 +125,21 @@ def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: che
     """
     ################
     ## YOUR CODE GOES HERE
+
+    key, subkey, subkey_2 = jax.random.split(rng, 3)
+    greedy_prob = jax.random.randint(subkey, shape=(1,), minval=0, maxval=1)
+    rand_arm = jax.random.randint(subkey_2, shape=(1,), minval=0, maxval=dqn.n_actions)
+
+    argmax_arm = jnp.argmax(dqn(state, params))
+    #Select action
+    action = jnp.where(greedy_prob<epsilon,
+                       random_arm, 
+                       argmax_arm) #Random action, #Argmax)
     ################
     
-    return jnp.array(0, dtype=jnp.int32)
+    #TODO: What to do with selected action?? 
+
+    return jnp.array(action, dtype=jnp.int32)
 
 
 def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, transition: Transition, gamma: float) -> chex.Array:
