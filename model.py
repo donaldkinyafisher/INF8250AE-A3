@@ -55,21 +55,22 @@ class DQN(nn.Module):
         batch = state.shape[0]
         ################
         ##YOUR CODE GOES HERE
+        hidden_sizes = (100, 50)
         #n-hidden * n-outputs = 2000 - 10,000
         #1st hidden layer
-        state = nn.Dense(features=self.n_actions)(state) #N-hidden
-        state = nn.relu(state)
+        x = nn.Dense(features=hidden_sizes[0])(state) #N-hidden
+        x = nn.relu(x)
 
         #2nd hidden layer
-        state = nn.Dense(features = self.state_shape)(state) #n-outputs? 
-        state == nn.relu(state)
+        x = nn.Dense(features = hidden_sizes[1])(x) #n-outputs? 
+        x = nn.relu(x)
 
         #Output layer
-        state = nn.Dense(features=1)(state)
+        q_values = nn.Dense(features=self.n_actions)(x)
         ################
         
         
-        return jnp.zeros((batch, self.n_actions), dtype=jnp.float32)
+        return q_values #jnp.zeros((batch, self.n_actions), dtype=jnp.float32)
 
 
 DQNParameters = flax.core.frozen_dict.FrozenDict
@@ -133,7 +134,7 @@ def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: che
     argmax_arm = jnp.argmax(dqn(state, params))
     #Select action
     action = jnp.where(greedy_prob<epsilon,
-                       random_arm, 
+                       rand_arm, 
                        argmax_arm) #Random action, #Argmax)
     ################
     
@@ -161,8 +162,13 @@ def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, 
     
     ################
     ## YOUR CODE GOES HERE
+
+    loss = reward + gamma*(1-done) #TODO: How to add in my Q parameters?
+    loss_theta = loss**loss
+
     ################
-    return jnp.array(0., dtype=jnp.float32)
+
+    return jnp.array(loss_theta, dtype=jnp.float32)
 
 
 def update_target(state: DQNTrainState) -> DQNTrainState:
@@ -176,7 +182,7 @@ def update_target(state: DQNTrainState) -> DQNTrainState:
     """
     ################
     ## YOUR CODE GOES HERE
-    new_state = state
+    new_state = jax.tree.map(lambda x,y:y, state.target_params, state.params)
     ################
     
     return new_state
@@ -195,11 +201,20 @@ def initialize_agent_state(dqn: DQN, rng: chex.PRNGKey, args: DQNTrainingArgs) -
     """
     ################
     ## YOUR CODE GOES HERE
+
+    dummy_input = jnp.ones((1, 28, 28, 1))  # (N, H, W, C) format
+
+    rng, subkey_1, subkey_2 = jax.random.split(rng, 3)
+    parameters = dqn.init(subkey_1, dummy_input)
+    target_parameters = dqn.init(subkey_2, dummy_input)
+
+    optimizer = optax.adam(args.learning_rate)
+
     train_state = DQNTrainState.create(
-        apply_fn=None,
-        params=None,
-        target_params=None,
-        tx=None,
+        apply_fn=dqn.apply,
+        params=parameters,
+        target_params=target_parameters,
+        tx=optimizer,
     )
 
     return train_state
