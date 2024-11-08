@@ -1,7 +1,6 @@
 import jax 
 import chex
 from jax import numpy as jnp
-
 from typing import Tuple, Any, Callable
 from jax import jit
 
@@ -124,14 +123,13 @@ def sample_transition(rng: chex.PRNGKey, buffer: ReplayBufferStorage) -> Transit
   #Sample is limited by the number of things in the buffer
   key, subkey = jax.random.split(rng, 2)
   sample = jax.random.randint(subkey, shape=(1,), minval=0, maxval=buffer.cursor)
-  #print(f"sample_no:{sample}")
 
   # please define these variables yourself
-  sampled_states = buffer.states[sample]
-  sampled_actions = buffer.actions[sample]
-  sampled_rewards = buffer.rewards[sample]
-  sampled_dones = buffer.dones[sample]
-  samped_next_states = buffer.next_states[sample]
+  sampled_states = buffer.states[sample][0]
+  sampled_actions = buffer.actions[sample][0]
+  sampled_rewards = buffer.rewards[sample][0]
+  sampled_dones = buffer.dones[sample][0]
+  samped_next_states = buffer.next_states[sample][0]
   ################
   
   transition = (
