@@ -8,7 +8,7 @@ import chex
 import gymnax
 from gymnax.environments.environment import EnvState, Environment, EnvParams
 
-from buffer import Transition, ReplayBuffer, ReplayBufferStorage, FIFOBuffer, ParallelFIFOBuffer
+from buffer import Transition, ReplayBuffer, ReplayBufferStorage, FIFOBuffer
 
 from model import (
     DQNTrainingArgs, DQNTrainState, DQN, DQNParameters, DQNAgent,
