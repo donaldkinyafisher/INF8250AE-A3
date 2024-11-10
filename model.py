@@ -106,7 +106,7 @@ class DQNAgent:
     performs the target network parameters update making the latter equal to the current parameters.
     """
 
-
+@partial(jax.jit, static_argnames = ['dqn'])
 def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: chex.Array, epsilon: chex.Array) -> chex.Array:
     """ selects an action according to the epsilon greedy strategy
 
@@ -126,23 +126,22 @@ def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: che
     """
     ################
     ## YOUR CODE GOES HERE
-
     key, subkey, subkey_2 = jax.random.split(rng, 3)
-    greedy_prob = jax.random.randint(subkey, shape=(1,), minval=0, maxval=1)
-    rand_arm = jax.random.randint(subkey_2, shape=(1,), minval=0, maxval=dqn.n_actions)
+    greedy_prob = jax.random.uniform(subkey, shape=(1,), minval=0, maxval=1)
+    rand_arm = jax.random.randint(subkey_2, shape=(1,), minval=0, maxval=dqn.n_actions-1)
 
-    argmax_arm = jnp.argmax(dqn(state, params))
+    q_values = dqn.apply(params, state)
+    argmax_arm = jnp.argmax(q_values)
+    
     #Select action
     action = jnp.where(greedy_prob<epsilon,
                        rand_arm, 
                        argmax_arm) #Random action, #Argmax)
     ################
     
-    #TODO: What to do with selected action?? 
+    return action[0]
 
-    return jnp.array(action, dtype=jnp.int32)
-
-
+@partial(jax.jit, static_argnames=['dqn'])
 def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, transition: Transition, gamma: float) -> chex.Array:
     """ Computes the Deep Q-Network loss.
 
@@ -163,12 +162,19 @@ def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, 
     ################
     ## YOUR CODE GOES HERE
 
-    loss = reward + gamma*(1-done) #TODO: How to add in my Q parameters?
+    q_values = dqn.apply(params, state)
+    q_values_s_prime = dqn.apply(target_params, next_state)
+
+    Q_theta = q_values[action]
+
+    max_Q_theta_hat = q_values_s_prime[jnp.argmax(q_values_s_prime)]
+
+    loss = Q_theta - (reward + gamma*(1-done)*max_Q_theta_hat)
     loss_theta = loss**loss
 
     ################
 
-    return jnp.array(loss_theta, dtype=jnp.float32)
+    return jnp.array(loss_theta[0], dtype=jnp.float32)
 
 
 def update_target(state: DQNTrainState) -> DQNTrainState:

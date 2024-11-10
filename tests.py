@@ -6,13 +6,18 @@ from jax import numpy as jnp
 from model import DQN, DQNAgent
 import flax
 
+from model import (
+    DQNTrainingArgs, DQNTrainState, DQN, DQNParameters, DQNAgent,
+    select_action, compute_loss, update_target, initialize_agent_state,
+    SimpleDQNAgent
+)
 
-def test_buffer():
-
-    new_buffer = buffer.init_buffer(15, (2,1))
+def create_buffer(): 
+     
+    new_buffer = buffer.init_buffer(15, (4,))
     #print(empty_buffer)
 
-    si = np.array([[1], [1]])
+    si = np.array([1, 1, 0, 0])
 
     key = jax.random.key(43)
 
@@ -20,7 +25,7 @@ def test_buffer():
 
         #Update s0
         s0 = copy.deepcopy(si)
-        si[0][0] = si[0][0]  + 1
+        si[0] = si[0]  + 1
 
         #Add transtion 
         transition = (s0, 1, -1, 1, si)
@@ -28,53 +33,77 @@ def test_buffer():
         #Update buffer
         new_buffer = buffer.add_transition(new_buffer, transition)
 
+    return new_buffer
+
+
+def test_buffer():
+        
         sample_transition = buffer.sample_transition(key, new_buffer)
         print(f"i ={i}:{sample_transition}")
-
-
-
-    return
+        
+        return
 
 
 def test_DQN_init():
 
-    key1, key2 = jax.random.split(jax.random.key(0), 2)
-    x = jax.random.uniform(key1, (4,4))
+    # Example parameters
+    state_shape = (4,) #[4, 84, 84, 3]  # e.g., (batch_size, height, width, channels)
+    n_actions = 2
 
-    model = DQN(2, 4)
-    dummy_input = jnp.ones((1, 28, 28, 1))  # (N, H, W, C) format
-    # initialize
-    key = jax.random.key(0)
-    key, subkey = jax.random.split(key, 2)
-    parameters = model.init(subkey, dummy_input)
+    rng = jax.random.key(0)
 
-    print('initialized parameter shapes:\n', jax.tree_util.tree_map(jnp.shape, flax.core.unfreeze(parameters)))
 
+    dqn = DQN(n_actions=n_actions, state_shape=state_shape)
+    state = jnp.ones((4, *state_shape[1:]))  # Example input with batch size of 32
+    params = dqn.init(rng, state)
+
+    agent = SimpleDQNAgent = DQNAgent(
+    dqn=dqn,
+    initialize_agent_state=initialize_agent_state,
+    select_action=select_action,
+    compute_loss=compute_loss,
+    update_target=update_target,
+)
+    action = SimpleDQNAgent.select_action(agent.dqn, rng, params = params,state=state,epsilon=0.1 )
     
-    return model, parameters
+    return action
 
-def test_action():
+def test_loss():
 
+    # Example parameters
+    state_shape = (4,) #[4, 84, 84, 3]  # e.g., (batch_size, height, width, channels)
+    n_actions = 2
+
+    rng = jax.random.key(0)
+
+    dqn = DQN(n_actions=n_actions, state_shape=state_shape)
+    state = jnp.ones((4, *state_shape[1:]))  # Example input with batch size of 32
+    params = dqn.init(rng, state)
+    target_params = dqn.init(rng, state)
+
+    agent = DQNAgent(
+    dqn=dqn,
+    initialize_agent_state=initialize_agent_state,
+    select_action=select_action,
+    compute_loss=compute_loss,
+    update_target=update_target,
+)
+
+    new_buffer = create_buffer()
+
+    transition = buffer.sample_transition(rng, new_buffer)
+
+    loss = agent.compute_loss(agent.dqn, params, target_params, transition, 0.95)
+
+    return loss
     
-    model, parameters = test_DQN_init()
-    #model.apply(parameters, dummy_input)
-
-    agent = DQNAgent.initialize_agent_state
-    key = jax.random.key(1)
-
-    action = agent.select_action(model, key, parameters, jnp.array([1,1,1,1]), 0.1 )
-
-
-
 
 if __name__ == '__main__':
 
     #1
     #test_buffer()
-
-    #test_DQN_init()
-
-    test_action()
+    action = test_DQN_init()
+    loss = test_loss()
     
 
         

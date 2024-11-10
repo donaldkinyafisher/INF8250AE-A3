@@ -55,7 +55,7 @@ def init_buffer(buffer_size: int, state_shape: Tuple[int]) -> ReplayBufferStorag
     full=jnp.array(False)
   )
 
-@jit
+
 def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> ReplayBufferStorage:
   """ adds one transition to the replay buffer.
 
