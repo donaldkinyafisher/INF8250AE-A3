@@ -169,12 +169,10 @@ def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, 
 
     max_Q_theta_hat = q_values_s_prime[jnp.argmax(q_values_s_prime)]
 
-    loss = Q_theta - (reward + gamma*(1-done)*max_Q_theta_hat)
-    loss_theta = loss**loss
-
+    loss_theta = (Q_theta - (reward + gamma*(1-done)*max_Q_theta_hat))**2
     ################
 
-    return jnp.array(loss_theta[0], dtype=jnp.float32)
+    return loss_theta[0]
 
 
 def update_target(state: DQNTrainState) -> DQNTrainState:
@@ -255,9 +253,18 @@ def compute_loss_double_dqn(dqn: DQN, params: DQNParameters, target_params: DQNP
     
     ################
     ## YOUR CODE GOES HERE
+    q_values = dqn.apply(params, state)
+    q_values_target_parameters_s_prime = dqn.apply(params, next_state)
+    q_values_s_prime = dqn.apply(target_params, next_state)
+
+    Q_theta = q_values[action]
+
+    Q_term = q_values_s_prime[jnp.argmax(q_values_target_parameters_s_prime)]
+
+    loss_theta = (Q_theta - (reward + gamma*(1-done)*Q_term))**2
     ################
 
-    return jnp.array(0., dtype=jnp.float32)
+    return loss_theta
 
 
 DoubleDQNAgent = DQNAgent(
