@@ -55,7 +55,7 @@ class DQN(nn.Module):
         batch = state.shape[0]
         ################
         ##YOUR CODE GOES HERE
-        hidden_sizes = (100, 50)
+        hidden_sizes = (128, 64)
         #n-hidden * n-outputs = 2000 - 10,000
         #1st hidden layer
         x = nn.Dense(features=hidden_sizes[0])(state) #N-hidden
@@ -70,7 +70,7 @@ class DQN(nn.Module):
         ################
         
         
-        return q_values #jnp.zeros((batch, self.n_actions), dtype=jnp.float32)
+        return jnp.array(q_values, dtype=jnp.float32)
 
 
 DQNParameters = flax.core.frozen_dict.FrozenDict
@@ -186,7 +186,8 @@ def update_target(state: DQNTrainState) -> DQNTrainState:
     """
     ################
     ## YOUR CODE GOES HERE
-    new_state = jax.tree.map(lambda x,y:y, state.target_params, state.params)
+    updated_target_params = jax.tree.map(lambda x,y: y.copy(), state.target_params, state.params)
+    new_state = state.replace(target_params = updated_target_params)
     ################
     
     return new_state
@@ -206,19 +207,20 @@ def initialize_agent_state(dqn: DQN, rng: chex.PRNGKey, args: DQNTrainingArgs) -
     ################
     ## YOUR CODE GOES HERE
 
-    dummy_input = jnp.ones((1, 28, 28, 1))  # (N, H, W, C) format
+    batch_size = 64
+    dummy_input = jnp.ones((batch_size, 4))  # (N, H, W, C) format
 
     rng, subkey_1, subkey_2 = jax.random.split(rng, 3)
     parameters = dqn.init(subkey_1, dummy_input)
     target_parameters = dqn.init(subkey_2, dummy_input)
 
-    optimizer = optax.adam(args.learning_rate)
+    optimizer = optax.adam(learning_rate=args.learning_rate)
 
     train_state = DQNTrainState.create(
         apply_fn=dqn.apply,
         params=parameters,
-        target_params=target_parameters,
-        tx=optimizer,
+        target_params = target_parameters,
+        tx=optimizer
     )
 
     return train_state

@@ -35,15 +35,6 @@ def create_buffer():
 
     return new_buffer
 
-
-def test_buffer():
-        
-        sample_transition = buffer.sample_transition(key, new_buffer)
-        print(f"i ={i}:{sample_transition}")
-        
-        return
-
-
 def test_DQN_init():
 
     # Example parameters
@@ -92,6 +83,10 @@ def test_loss():
     new_buffer = create_buffer()
 
     transition = buffer.sample_transition(rng, new_buffer)
+
+    agent_state = agent.initialize_agent_state(dqn, rng , DQNTrainingArgs)
+
+    new_state = agent.update_target(agent_state)
 
     loss = agent.compute_loss(agent.dqn, params, target_params, transition, 0.95)
 
