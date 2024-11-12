@@ -79,9 +79,7 @@ def add_transition(buffer: ReplayBufferStorage, transition: Transition) -> Repla
   max_buffer_size = buffer.rewards.shape[0]
 
   ################
-  ## YOUR CODE GOES HERE
   buffer_full = buffer.full
-  # Define a function to shift buffer elements if it's full
 
   # Determine the new cursor position
   new_cursor = jnp.where(cursor <= max_buffer_size - 2, cursor + 1, 0) #Reset cursor to 0 if buffer is full.
@@ -121,15 +119,16 @@ def sample_transition(rng: chex.PRNGKey, buffer: ReplayBufferStorage) -> Transit
   ## YOUR CODE GOES HERE
 
   #Sample is limited by the number of things in the buffer
+  max_size = jnp.where(buffer.full==True, buffer.rewards.shape[0], buffer.cursor)
   key, subkey = jax.random.split(rng, 2)
-  sample = jax.random.randint(subkey, shape=(1,), minval=0, maxval=buffer.cursor)
+  sample_index = jax.random.randint(subkey, shape=(), minval=0, maxval=max_size)
 
   # please define these variables yourself
-  sampled_states = buffer.states[sample][0]
-  sampled_actions = buffer.actions[sample][0]
-  sampled_rewards = buffer.rewards[sample][0]
-  sampled_dones = buffer.dones[sample][0]
-  samped_next_states = buffer.next_states[sample][0]
+  sampled_states = buffer.states[sample_index]
+  sampled_actions = buffer.actions[sample_index]
+  sampled_rewards = buffer.rewards[sample_index]
+  sampled_dones = buffer.dones[sample_index]
+  samped_next_states = buffer.next_states[sample_index]
   ################
   
   transition = (

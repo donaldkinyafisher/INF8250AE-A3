@@ -54,23 +54,17 @@ class DQN(nn.Module):
         """
         batch = state.shape[0]
         ################
-        ##YOUR CODE GOES HERE
-        hidden_sizes = (128, 64)
-        #n-hidden * n-outputs = 2000 - 10,000
+        feature_sizes = (128, 64)
         #1st hidden layer
-        x = nn.Dense(features=hidden_sizes[0])(state) #N-hidden
+        x = nn.Dense(features=feature_sizes[0])(state)
         x = nn.relu(x)
-
         #2nd hidden layer
-        x = nn.Dense(features = hidden_sizes[1])(x) #n-outputs? 
+        x = nn.Dense(features = feature_sizes[1])(x)
         x = nn.relu(x)
-
-        #Output layer
         q_values = nn.Dense(features=self.n_actions)(x)
         ################
         
-        
-        return jnp.array(q_values, dtype=jnp.float32)
+        return q_values
 
 
 DQNParameters = flax.core.frozen_dict.FrozenDict
@@ -163,18 +157,18 @@ def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, 
     ## YOUR CODE GOES HERE
 
     q_values = dqn.apply(params, state)
-    q_values_s_prime = dqn.apply(target_params, next_state)
+    q_value_s_a = q_values[action]
+    
+    next_state_q_theta_hat_values = dqn.apply(target_params, next_state)
+    next_state_max_q_theta_hat = jnp.max(next_state_q_theta_hat_values, axis = -1)
+    target = (reward + gamma*(1 - done)*next_state_max_q_theta_hat)
+    loss = jnp.square(q_value_s_a - target)
 
-    Q_theta = q_values[action]
-
-    max_Q_theta_hat = q_values_s_prime[jnp.argmax(q_values_s_prime)]
-
-    loss_theta = (Q_theta - (reward + gamma*(1-done)*max_Q_theta_hat))**2
     ################
 
-    return loss_theta[0]
+    return loss
 
-
+@partial(jax.jit)
 def update_target(state: DQNTrainState) -> DQNTrainState:
     """ performs an update of the target network parameters
 
@@ -192,7 +186,7 @@ def update_target(state: DQNTrainState) -> DQNTrainState:
     
     return new_state
 
-
+@partial(jax.jit, static_argnames=['dqn', 'args'])
 def initialize_agent_state(dqn: DQN, rng: chex.PRNGKey, args: DQNTrainingArgs) -> DQNTrainState:
     """ Creates the training state for the DQN agent
 
@@ -207,14 +201,13 @@ def initialize_agent_state(dqn: DQN, rng: chex.PRNGKey, args: DQNTrainingArgs) -
     ################
     ## YOUR CODE GOES HERE
 
-    batch_size = 64
-    dummy_input = jnp.ones((batch_size, 4))  # (N, H, W, C) format
+    dummy_input = jnp.ones((args.train_batch_size, *dqn.state_shape))
 
-    rng, subkey_1, subkey_2 = jax.random.split(rng, 3)
+    rng, subkey_1 = jax.random.split(rng, 2)
     parameters = dqn.init(subkey_1, dummy_input)
-    target_parameters = dqn.init(subkey_2, dummy_input)
+    target_parameters = dqn.init(subkey_1, dummy_input)
 
-    optimizer = optax.adam(learning_rate=args.learning_rate)
+    optimizer = optax.sgd(learning_rate=args.learning_rate)
 
     train_state = DQNTrainState.create(
         apply_fn=dqn.apply,
@@ -235,7 +228,7 @@ SimpleDQNAgent = DQNAgent(
     update_target=update_target,
 )
 
-
+@partial(jax.jit, static_argnames=['dqn'])
 def compute_loss_double_dqn(dqn: DQN, params: DQNParameters, target_params: DQNParameters, transition: Transition, gamma: float) -> chex.Array:
     """ Computes the Deep Q-Network loss.
 
@@ -254,20 +247,21 @@ def compute_loss_double_dqn(dqn: DQN, params: DQNParameters, target_params: DQNP
     state, action, reward, done, next_state = transition
     
     ################
-    ## YOUR CODE GOES HERE
-    q_values = dqn.apply(params, state)
-    q_values_target_parameters_s_prime = dqn.apply(params, next_state)
-    q_values_s_prime = dqn.apply(target_params, next_state)
+    ## State-action values
+    q_theta_values = dqn.apply(params, state)
+    next_state_q_theta_values = dqn.apply(params, next_state)
+    next_state_q_theta_hat_values = dqn.apply(target_params, next_state)
 
-    Q_theta = q_values[action]
+    q_theta = q_theta_values[action]
 
-    Q_term = q_values_s_prime[jnp.argmax(q_values_target_parameters_s_prime)]
+    Q_term = next_state_q_theta_hat_values[jnp.argmax(next_state_q_theta_values)]
+    target = (reward + gamma*(1-done)*Q_term)
+    loss = jnp.square(q_theta - target)
 
-    loss_theta = (Q_theta - (reward + gamma*(1-done)*Q_term))**2
+
     ################
 
-    return loss_theta
-
+    return loss
 
 DoubleDQNAgent = DQNAgent(
     dqn=dqn,
