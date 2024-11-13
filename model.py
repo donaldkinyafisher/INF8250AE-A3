@@ -52,8 +52,10 @@ class DQN(nn.Module):
         Returns:
             array containing Q-values for each action, its shape is [batch, n_actions]
         """
+        
         batch = state.shape[0]
         ################
+        #[B = Batch, H = 2, Width = 128, C=self.n_actions]
         feature_sizes = (128, 64)
         #1st hidden layer
         x = nn.Dense(features=feature_sizes[0])(state)
@@ -100,7 +102,7 @@ class DQNAgent:
     performs the target network parameters update making the latter equal to the current parameters.
     """
 
-@partial(jax.jit, static_argnames = ['dqn'])
+#@partial(jax.jit, static_argnames = ['dqn'])
 def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: chex.Array, epsilon: chex.Array) -> chex.Array:
     """ selects an action according to the epsilon greedy strategy
 
@@ -121,11 +123,12 @@ def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: che
     ################
     ## YOUR CODE GOES HERE
     key, subkey, subkey_2 = jax.random.split(rng, 3)
-    greedy_prob = jax.random.uniform(subkey, shape=(1,), minval=0, maxval=1)
-    rand_arm = jax.random.randint(subkey_2, shape=(1,), minval=0, maxval=dqn.n_actions-1)
+    greedy_prob = jax.random.uniform(subkey, shape=(), minval=0, maxval=1)
+    
 
     q_values = dqn.apply(params, state)
-    argmax_arm = jnp.argmax(q_values)
+    rand_arm = jax.random.choice(subkey_2, a = q_values.shape[-1])
+    argmax_arm = jnp.argmax(q_values, axis=-1)
     
     #Select action
     action = jnp.where(greedy_prob<epsilon,
@@ -133,9 +136,9 @@ def select_action(dqn: DQN, rng: chex.PRNGKey, params: DQNParameters, state: che
                        argmax_arm) #Random action, #Argmax)
     ################
     
-    return action[0]
+    return action
 
-@partial(jax.jit, static_argnames=['dqn'])
+#@partial(jax.jit, static_argnames=['dqn'])
 def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, transition: Transition, gamma: float) -> chex.Array:
     """ Computes the Deep Q-Network loss.
 
@@ -157,7 +160,7 @@ def compute_loss(dqn: DQN, params: DQNParameters, target_params: DQNParameters, 
     ## YOUR CODE GOES HERE
 
     q_values = dqn.apply(params, state)
-    q_value_s_a = q_values[action]
+    q_value_s_a = q_values[jnp.arange(q_values.shape[0])][action] #q_values[action]
     
     next_state_q_theta_hat_values = dqn.apply(target_params, next_state)
     next_state_max_q_theta_hat = jnp.max(next_state_q_theta_hat_values, axis = -1)
@@ -207,7 +210,7 @@ def initialize_agent_state(dqn: DQN, rng: chex.PRNGKey, args: DQNTrainingArgs) -
     parameters = dqn.init(subkey_1, dummy_input)
     target_parameters = dqn.init(subkey_1, dummy_input)
 
-    optimizer = optax.sgd(learning_rate=args.learning_rate)
+    optimizer = optax.adam(learning_rate=args.learning_rate)
 
     train_state = DQNTrainState.create(
         apply_fn=dqn.apply,
@@ -254,10 +257,9 @@ def compute_loss_double_dqn(dqn: DQN, params: DQNParameters, target_params: DQNP
 
     q_theta = q_theta_values[action]
 
-    Q_term = next_state_q_theta_hat_values[jnp.argmax(next_state_q_theta_values)]
+    Q_term = next_state_q_theta_hat_values[jnp.arange(next_state_q_theta_hat_values.shape[0])][jnp.argmax(next_state_q_theta_values)]
     target = (reward + gamma*(1-done)*Q_term)
     loss = jnp.square(q_theta - target)
-
 
     ################
 
